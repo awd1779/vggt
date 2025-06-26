@@ -4,8 +4,9 @@
 # This script imports the dataset and model from other files and runs the
 # fine-tuning process.
 #
-# FIX: Added a learning rate scheduler and adjusted learning rates
-# to prevent overfitting of the semantic head.
+# FIX: Implemented a more robust training strategy with adjusted learning rates
+# and a learning rate scheduler to prevent catastrophic forgetting of the
+# geometric backbone.
 
 import torch
 import torch.nn as nn
@@ -110,6 +111,7 @@ def main():
         for i, batch in enumerate(data_loader):
             optimizer.zero_grad()
             
+            # The DataLoader provides a batch, so we need to get the first (and only) item.
             images = batch["images"].squeeze(0).to(device)
             masks = batch["masks"].squeeze(0).to(device)
             gt_depths = batch["depths"].squeeze(0).to(device)
@@ -118,10 +120,12 @@ def main():
             valid_gt_labels = gt_labels_packed.flatten()[gt_labels_packed.flatten() != -100].to(device)
             
             with torch.cuda.amp.autocast(enabled=(device=='cuda')):
+                # Pass the unbatched sequence to the model
                 geom_predictions, semantic_logits = model(images, masks)
                 
-                predicted_depth = geom_predictions["depth"].squeeze()
-                geom_loss = geom_loss_fn(predicted_depth, gt_depths.squeeze())
+                # Squeeze the batch dimension (1) from the predictions before calculating loss
+                predicted_depth = geom_predictions["depth"].squeeze(0)
+                geom_loss = geom_loss_fn(predicted_depth, gt_depths.squeeze(1)) # Squeeze channel dim from GT
                 
                 semantic_loss = torch.tensor(0.0, device=device)
                 if semantic_logits is not None and len(valid_gt_labels) > 0:

@@ -1,8 +1,6 @@
 # dataset.py
 #
 # Contains the data loading and preprocessing logic for the ScanNet dataset.
-# FIX: Removed unused and error-prone parsing of .ply and .segs.json files.
-# The necessary label information is sourced directly from aggregation.json.
 
 import torch
 import torchvision.transforms as T
@@ -73,13 +71,10 @@ class RealScanNetSemanticDataset(Dataset):
         
         instance_map = {}
         for group in agg_data['segGroups']:
-            # In ScanNet, objectId in the JSON is the instance ID. We add 1 to align with
-            # some versions of instance mask files which are 1-indexed. Adjust if your masks differ.
             instance_id = group['objectId'] + 1
             label_name = group.get('label', 'unannotated')
             instance_map[instance_id] = label_name
 
-        # Create a final mapping from instance ID to an integer class ID
         unique_labels = sorted(list(set(instance_map.values()) - {'unannotated'}))
         self.class_names = unique_labels
         self.class_to_idx = {name: i for i, name in enumerate(unique_labels)}
